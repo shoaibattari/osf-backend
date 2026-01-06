@@ -28,6 +28,15 @@ const participantSchema = new mongoose.Schema(
     kitSize: String,
     ageGroup: String,
     gamesSelected: [GameSelectedSchema],
+    paymentScreenshot: {
+      url: { type: String, default: "" },
+      publicId: { type: String, default: "" },
+    },
+    paymentStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );

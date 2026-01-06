@@ -46,6 +46,10 @@ export const registerParticipant = async (req, res) => {
       participantId,
       ...participantData,
       gamesSelected: gamesWithName,
+      paymentScreenshot: req.file
+        ? { url: req.file.path, publicId: req.file.filename }
+        : undefined,
+      paymentStatus: "pending",
     });
     await participant.save();
 
@@ -66,6 +70,8 @@ export const registerParticipant = async (req, res) => {
         kitSize: participant.kitSize,
         ageGroup: participant.ageGroup,
         gamesSelected: gamesWithName, // clean games with gameName
+        paymentScreenshot: participant.paymentScreenshot,
+        paymentStatus: participant.paymentStatus,
       },
     });
   } catch (error) {
@@ -129,6 +135,8 @@ export const getAllParticipants = async (req, res) => {
         gameName: g.gameName,
         token: g.token,
       })),
+      paymentScreenshot: p.paymentScreenshot,
+      paymentStatus: p.paymentStatus,
     }));
 
     res.status(200).json({
