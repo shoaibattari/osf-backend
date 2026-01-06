@@ -1,11 +1,101 @@
 import Participant from "../model/Participant.js";
 import Game from "../model/Game.js";
 
-export const registerParticipant = async (req, res) => {
-  const { participantData, selectedGames } = req.body;
-  const gender = participantData.gender;
+// export const registerParticipant = async (req, res) => {
+//   const { participantData, selectedGames } = req.body;
 
+//   // Parse selectedGames if it's a string (FormData sends it as string)
+//   if (typeof selectedGames === "string") {
+//     selectedGames = JSON.parse(selectedGames);
+//   }
+
+//   const gender = participantData.gender;
+
+//   try {
+//     // 1️⃣ Generate OMJ human-readable ID
+//     const count = await Participant.countDocuments();
+//     const newIdNumber = count + 1;
+//     const participantId = `OMJ-SPORT-${String(newIdNumber).padStart(4, "0")}`;
+
+//     // 2️⃣ Reduce game counts & fetch game names
+//     const gamesWithName = [];
+
+//     for (let g of selectedGames) {
+//       const update =
+//         gender === "male"
+//           ? { $inc: { maleCount: -1 } }
+//           : { $inc: { femaleCount: -1 } };
+
+//       const game = await Game.findOneAndUpdate(
+//         {
+//           _id: g.gameId,
+//           ...(gender === "male"
+//             ? { maleCount: { $gt: 0 } }
+//             : { femaleCount: { $gt: 0 } }),
+//         },
+//         update,
+//         { new: true }
+//       );
+
+//       if (!game) {
+//         return res.status(400).json({ message: `Game ${g.gameId} is full` });
+//       }
+
+//       gamesWithName.push({
+//         gameId: game._id,
+//         gameName: game.gameName,
+//         token: game.token,
+//       });
+//     }
+//     // 3️⃣ Save participant with populated games
+//     const participant = new Participant({
+//       participantId,
+//       ...participantData,
+//       gamesSelected: gamesWithName,
+//       paymentScreenshot: req.file
+//         ? { url: req.file.path, publicId: req.file.filename }
+//         : undefined,
+//       paymentStatus: "pending",
+//     });
+//     await participant.save();
+
+//     // 4️⃣ Send clean response
+//     res.status(201).json({
+//       message: "Registration Successful",
+//       participant: {
+//         participantId,
+//         name: participant.name,
+//         fatherName: participant.fatherName,
+//         khundi: participant.khundi,
+//         dob: participant.dob,
+//         gender: participant.gender,
+//         omjCard: participant.omjCard,
+//         cnic: participant.cnic,
+//         whatsapp: participant.whatsapp,
+//         location: participant.location,
+//         kitSize: participant.kitSize,
+//         ageGroup: participant.ageGroup,
+//         gamesSelected: gamesWithName, // clean games with gameName
+//         paymentScreenshot: participant.paymentScreenshot,
+//         paymentStatus: participant.paymentStatus,
+//       },
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: error.message });
+//   }
+// };
+
+export const registerParticipant = async (req, res) => {
   try {
+    let { participantData, selectedGames } = req.body;
+
+    // Parse selectedGames if it's a string (FormData sends it as string)
+    if (typeof selectedGames === "string") {
+      selectedGames = JSON.parse(selectedGames);
+    }
+
+    const gender = participantData.gender;
+
     // 1️⃣ Generate OMJ human-readable ID
     const count = await Participant.countDocuments();
     const newIdNumber = count + 1;
@@ -41,7 +131,8 @@ export const registerParticipant = async (req, res) => {
         token: game.token,
       });
     }
-    // 3️⃣ Save participant with populated games
+
+    // 3️⃣ Save participant
     const participant = new Participant({
       participantId,
       ...participantData,
@@ -53,23 +144,13 @@ export const registerParticipant = async (req, res) => {
     });
     await participant.save();
 
-    // 4️⃣ Send clean response
+    // 4️⃣ Send response
     res.status(201).json({
       message: "Registration Successful",
       participant: {
         participantId,
-        name: participant.name,
-        fatherName: participant.fatherName,
-        khundi: participant.khundi,
-        dob: participant.dob,
-        gender: participant.gender,
-        omjCard: participant.omjCard,
-        cnic: participant.cnic,
-        whatsapp: participant.whatsapp,
-        location: participant.location,
-        kitSize: participant.kitSize,
-        ageGroup: participant.ageGroup,
-        gamesSelected: gamesWithName, // clean games with gameName
+        ...participantData,
+        gamesSelected: gamesWithName,
         paymentScreenshot: participant.paymentScreenshot,
         paymentStatus: participant.paymentStatus,
       },
