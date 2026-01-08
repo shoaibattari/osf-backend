@@ -170,6 +170,7 @@ export const getAllParticipants = async (req, res) => {
     if (search && search.trim().length > 0) {
       const regex = new RegExp(search.trim(), "i");
       query.$or = [
+        { participantId: regex },
         { name: regex },
         { fatherName: regex },
         { khundi: regex },
@@ -189,8 +190,12 @@ export const getAllParticipants = async (req, res) => {
     }
 
     // 3️⃣ Pagination
-    const skip = (parseInt(page) - 1) * parseInt(limit);
-    const total = await Participant.countDocuments(query);
+    const currentPage = parseInt(page);
+    const pageLimit = parseInt(limit);
+    const skip = (currentPage - 1) * pageLimit;
+
+    const totalRecords = await Participant.countDocuments(query);
+    const totalPages = Math.ceil(totalRecords / pageLimit);
 
     const participants = await Participant.find(query)
       .sort({ createdAt: -1 })
@@ -199,6 +204,7 @@ export const getAllParticipants = async (req, res) => {
 
     // 4️⃣ Clean response
     const data = participants.map((p) => ({
+      id: p._id,
       participantId: p.participantId,
       name: p.name,
       fatherName: p.fatherName,
@@ -221,12 +227,57 @@ export const getAllParticipants = async (req, res) => {
     }));
 
     res.status(200).json({
-      total,
-      page: parseInt(page),
-      limit: parseInt(limit),
+      pagination: {
+        totalRecords,
+        totalPages,
+        currentPage,
+        limit: pageLimit,
+      },
       participants: data,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const statusPaymentUpdate = async (req, res) => {
+  try {
+    const { participantId } = req.params;
+    const { paymentStatus } = req.body; // "paid" | "pending" | "rejected"
+
+    // ✅ validation
+    if (!paymentStatus) {
+      return res.status(400).json({
+        status: false,
+        message: "Payment status is required",
+      });
+    }
+
+    const participant = await Participant.findOneAndUpdate(
+      { participantId },
+      { paymentStatus },
+      { new: true }
+    );
+
+    if (!participant) {
+      return res.status(404).json({
+        status: false,
+        message: "Participant not found",
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Payment status updated successfully",
+      data: {
+        participantId: participant.participantId,
+        paymentStatus: participant.paymentStatus,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: false,
+      message: error.message,
+    });
   }
 };
