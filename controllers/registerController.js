@@ -281,3 +281,26 @@ export const statusPaymentUpdate = async (req, res) => {
     });
   }
 };
+
+export const getParticipantStats = async (req, res) => {
+  try {
+    // 1️⃣ Total participants
+    const total = await Participant.countDocuments();
+
+    // 2️⃣ Count per age group
+    const ageGroups = await Participant.aggregate([
+      { $group: { _id: "$ageGroup", count: { $sum: 1 } } },
+    ]);
+
+    // 3️⃣ Send response
+    res.status(200).json({
+      total,
+      ageGroups: ageGroups.reduce((acc, curr) => {
+        acc[curr._id] = curr.count;
+        return acc;
+      }, {}),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
