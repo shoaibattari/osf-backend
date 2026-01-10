@@ -1,5 +1,7 @@
 import Participant from "../model/Participant.js";
 import Game from "../model/Game.js";
+import mongoose from "mongoose";
+import ExcelJS from "exceljs";
 
 // export const registerParticipant = async (req, res) => {
 //   const { participantData, selectedGames } = req.body;
@@ -162,7 +164,7 @@ export const registerParticipant = async (req, res) => {
 
 export const getAllParticipants = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10, gameName } = req.query;
+    const { search, page = 1, limit = 10, gameName, paymentStatus } = req.query;
 
     let query = {};
 
@@ -187,6 +189,10 @@ export const getAllParticipants = async (req, res) => {
       query["gamesSelected.gameName"] = {
         $regex: new RegExp(gameName.trim(), "i"),
       };
+    }
+
+    if (paymentStatus && paymentStatus !== "all") {
+      query.paymentStatus = paymentStatus;
     }
 
     // 3️⃣ Pagination
@@ -242,19 +248,27 @@ export const getAllParticipants = async (req, res) => {
 
 export const statusPaymentUpdate = async (req, res) => {
   try {
-    const { participantId } = req.params;
-    const { paymentStatus } = req.body; // "paid" | "pending" | "rejected"
+    const { id } = req.params;
+    const { paymentStatus } = req.body;
 
-    // ✅ validation
-    if (!paymentStatus) {
+    // ✅ Validate ObjectId
+    if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         status: false,
-        message: "Payment status is required",
+        message: "Invalid participant id",
       });
     }
 
-    const participant = await Participant.findOneAndUpdate(
-      { participantId },
+    const allowedStatus = ["paid", "pending", "rejected"];
+    if (!allowedStatus.includes(paymentStatus)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid payment status",
+      });
+    }
+
+    const participant = await Participant.findByIdAndUpdate(
+      id,
       { paymentStatus },
       { new: true }
     );
@@ -270,7 +284,8 @@ export const statusPaymentUpdate = async (req, res) => {
       status: true,
       message: "Payment status updated successfully",
       data: {
-        participantId: participant.participantId,
+        id: participant._id,
+        participantId: participant.participantId, // still return readable id
         paymentStatus: participant.paymentStatus,
       },
     });
@@ -284,23 +299,145 @@ export const statusPaymentUpdate = async (req, res) => {
 
 export const getParticipantStats = async (req, res) => {
   try {
-    // 1️⃣ Total participants
-    const total = await Participant.countDocuments();
-
-    // 2️⃣ Count per age group
-    const ageGroups = await Participant.aggregate([
-      { $group: { _id: "$ageGroup", count: { $sum: 1 } } },
+    // 1️⃣ Overall gender wise count
+    const genderStats = await Participant.aggregate([
+      {
+        $group: {
+          _id: "$gender",
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
-    // 3️⃣ Send response
+    const total = {
+      all: 0,
+      male: 0,
+      female: 0,
+    };
+
+    genderStats.forEach((g) => {
+      total[g._id] = g.count;
+      total.all += g.count;
+    });
+
+    // 2️⃣ Age group + Gender wise count
+    const stats = await Participant.aggregate([
+      {
+        $group: {
+          _id: {
+            ageGroup: "$ageGroup",
+            gender: "$gender",
+          },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    const ageGroups = {};
+
+    stats.forEach((item) => {
+      const { ageGroup, gender } = item._id;
+
+      if (!ageGroups[ageGroup]) {
+        ageGroups[ageGroup] = {
+          total: 0,
+          male: 0,
+          female: 0,
+        };
+      }
+
+      ageGroups[ageGroup][gender] = item.count;
+      ageGroups[ageGroup].total += item.count;
+    });
+
+    // 3️⃣ Response
     res.status(200).json({
       total,
-      ageGroups: ageGroups.reduce((acc, curr) => {
-        acc[curr._id] = curr.count;
-        return acc;
-      }, {}),
+      ageGroups,
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const exportParticipantsExcel = async (req, res) => {
+  try {
+    const { paymentStatus, search } = req.query;
+
+    let query = {};
+    if (paymentStatus && paymentStatus !== "all")
+      query.paymentStatus = paymentStatus;
+    if (search) {
+      const regex = new RegExp(search, "i");
+      query.$or = [
+        { name: regex },
+        { participantId: regex },
+        { whatsapp: regex },
+        { cnic: regex },
+      ];
+    }
+
+    const participants = await Participant.find(query);
+
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Participants");
+
+    // Columns
+    worksheet.columns = [
+      { header: "Participant ID", key: "participantId", width: 20 },
+      { header: "Name", key: "name", width: 20 },
+      { header: "Father Name", key: "fatherName", width: 20 },
+      { header: "CNIC", key: "cnic", width: 20 },
+      { header: "WhatsApp", key: "whatsapp", width: 20 },
+      { header: "Gender", key: "gender", width: 10 },
+      { header: "Age Group", key: "ageGroup", width: 10 },
+      { header: "Kit Size", key: "kitSize", width: 10 },
+      { header: "Khundi", key: "khundi", width: 15 },
+      { header: "Location", key: "location", width: 15 },
+      { header: "Games", key: "games", width: 30 },
+      { header: "Payment Status", key: "paymentStatus", width: 15 },
+      { header: "Payment Screenshot", key: "paymentScreenshot", width: 50 },
+    ];
+
+    // Add Rows
+    participants.forEach((p) => {
+      worksheet.addRow({
+        participantId: p.participantId || "",
+        name: p.name || "",
+        fatherName: p.fatherName || "",
+        cnic: p.cnic || "",
+        whatsapp: p.whatsapp || "",
+        gender: p.gender || "",
+        ageGroup: p.ageGroup || "",
+        kitSize: p.kitSize || "",
+        khundi: p.khundi || "",
+        location: p.location || "",
+        games: p.gamesSelected?.map((g) => g.gameName).join(", ") || "",
+        paymentStatus: p.paymentStatus || "",
+        paymentScreenshot: p.paymentScreenshot?.url || "",
+      });
+    });
+
+    // Header styling
+    worksheet.getRow(1).eachCell((cell) => {
+      cell.font = { bold: true };
+    });
+
+    // Send file properly
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename=participants}.xlsx`
+    );
+
+    // Correct way: write workbook to buffer first
+    const buffer = await workbook.xlsx.writeBuffer();
+    res.send(buffer);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
   }
 };
