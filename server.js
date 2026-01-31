@@ -16,13 +16,7 @@ cloudinary.v2.config({
   api_secret: process.env.CLOUDINARY_API_SECRET,
 });
 
-app.use(
-  cors({
-    origin: [
-      "https://okhaisportsfestival.vercel.app",
-    ], // yahan 4 URLs allow hain
-  })
-);
+app.use(cors(""));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
