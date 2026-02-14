@@ -441,3 +441,53 @@ export const exportParticipantsExcel = async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 };
+
+export const updateParticipantBasicInfo = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, fatherName, whatsapp } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        status: false,
+        message: "Invalid participant id",
+      });
+    }
+
+    // Optional validation
+    if (!name || !fatherName || !whatsapp) {
+      return res.status(400).json({
+        status: false,
+        message: "All fields are required",
+      });
+    }
+
+    const updatedParticipant = await Participant.findByIdAndUpdate(
+      id,
+      {
+        name,
+        fatherName,
+        whatsapp,
+      },
+      { new: true }
+    );
+
+    if (!updatedParticipant) {
+      return res.status(404).json({
+        status: false,
+        message: "Participant not found",
+      });
+    }
+
+    res.status(200).json({
+      status: true,
+      message: "Participant basic info updated successfully",
+      data: updatedParticipant,
+    });
+  } catch (error) {
+    res.status(500).json({
+      status: false,
+      message: error.message,
+    });
+  }
+};

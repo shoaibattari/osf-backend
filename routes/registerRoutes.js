@@ -5,6 +5,7 @@ import {
   getParticipantStats,
   registerParticipant,
   statusPaymentUpdate,
+  updateParticipantBasicInfo,
 } from "../controllers/registerController.js";
 import upload from "../middlewares/upload.js";
 import verifyToken from "../middlewares/verifyToken.js";
@@ -17,6 +18,8 @@ router.post(
   registerParticipant
 );
 router.get("/", getAllParticipants);
+router.patch("/:id/basic-info", verifyToken, updateParticipantBasicInfo);
+
 router.get("/stats", getParticipantStats);
 
 router.patch("/:id/payment-status", verifyToken, statusPaymentUpdate);
